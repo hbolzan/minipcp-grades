@@ -1,0 +1,267 @@
+;; gorilla-repl.fileformat = 1
+
+;; **
+;;; # Gorilla REPL
+;;; 
+;;; Welcome to gorilla :-)
+;;; 
+;;; Shift + enter evaluates code. Hit alt+g twice in quick succession or click the menu icon (upper-right corner) for more commands ...
+;;; 
+;;; It's a good habit to run each worksheet in its own namespace: feel free to use the declaration we've provided below if you'd like.
+;; **
+
+;; @@
+(ns minipcp-grade.core-repl
+  (:require [gorilla-plot.core :as plot]))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(require '[clojure.java.jdbc :as sql])
+(def conn-str "postgresql://postgres@localhost:5432/minipcp")
+(def query (partial sql/query conn-str))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;minipcp-grade.core-repl/query</span>","value":"#'minipcp-grade.core-repl/query"}
+;; <=
+
+;; @@
+(def tipos (query "select * from prd_tipos"))
+(def produtos (query "select * from produtos"))
+(def produtos-com-grade  (query "select * from view_grade_produtos"))
+(def composicoes (query "select * from prd_composicoes"))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;minipcp-grade.core-repl/composicoes</span>","value":"#'minipcp-grade.core-repl/composicoes"}
+;; <=
+
+;; @@
+(defn get-produto 
+  [produtos tipo codigo & quantidade] 
+  (assoc (first (filter #(and (= (:tipo %) tipo) (= (:codigo %) codigo)) produtos)) :quantidade (first quantidade)))
+
+
+(defn prd-composicao-filter
+  [produto produtos composicoes]
+  (map
+    #(assoc % :composicao (prd-composicao-filter % produtos composicoes))
+    (into [] (map 
+      #(get-produto produtos (:tipo %) (:codigo %) (:quantidade %))
+      (filter #(and (= (:tipo produto) (:paitipo %)) (= (:codigo produto) (:paicodigo %))) composicoes)))))
+
+
+(defn produto-reduzido 
+  [produto] 
+  {:tipo (:tipo produto) 
+   :codigo (:codigo produto) 
+   :descricao (:descricao produto) 
+   :quantidade (:quantidade produto) 
+   :composicao (map produto-reduzido (:composicao produto))})
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;minipcp-grade.core-repl/produto-reduzido</span>","value":"#'minipcp-grade.core-repl/produto-reduzido"}
+;; <=
+
+;; @@
+(clojure.pprint/pprint (map produto-reduzido (reduce 
+  (fn [todos produto] (if (empty? (:composicao produto)) todos (conj todos produto))) 
+  [] 
+  (map #(assoc % :composicao (prd-composicao-filter % produtos-com-grade composicoes)) (filter #(= (:tipo %) 4) produtos)))))
+
+
+
+; (prd-composicao-filter (get-produto produtos 4 "PA-0007") produtos composicoes)
+;; @@
+;; ->
+;;; ({:tipo 4,
+;;;   :codigo &quot;PA-0003&quot;,
+;;;   :descricao &quot;Luva de vinil WalMart 16x50&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 7,
+;;;     :codigo &quot;MP-0003&quot;,
+;;;     :descricao &quot;Luva de vinil 50x100&quot;,
+;;;     :quantidade 0.16,
+;;;     :composicao ()}
+;;;    {:tipo 2,
+;;;     :codigo &quot;ME-0001&quot;,
+;;;     :descricao &quot;Rótulos luvas Walmart&quot;,
+;;;     :quantidade 0.001,
+;;;     :composicao ()}
+;;;    {:tipo 2,
+;;;     :codigo &quot;ME-0002&quot;,
+;;;     :descricao &quot;Cartucho para luvas Wal Mart&quot;,
+;;;     :quantidade 0.016,
+;;;     :composicao ()})}
+;;;  {:tipo 4,
+;;;   :codigo &quot;PA-0002&quot;,
+;;;   :descricao &quot;Outro Produto&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 1,
+;;;     :codigo &quot;MP-0001&quot;,
+;;;     :descricao &quot;Teste&quot;,
+;;;     :quantidade 0.7,
+;;;     :composicao ()}
+;;;    {:tipo 1,
+;;;     :codigo &quot;MP-0002:0006&quot;,
+;;;     :descricao &quot;Outro Teste Branco&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()}
+;;;    {:tipo 1,
+;;;     :codigo &quot;MP-0002:0008&quot;,
+;;;     :descricao &quot;Outro Teste Azul&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()}
+;;;    {:tipo 1,
+;;;     :codigo &quot;MP-0002:0020&quot;,
+;;;     :descricao &quot;Outro Teste Preto&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()})}
+;;;  {:tipo 4,
+;;;   :codigo &quot;PA-01-A&quot;,
+;;;   :descricao &quot;Produto 01 - bombona 50L&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 3,
+;;;     :codigo &quot;SA-01&quot;,
+;;;     :descricao &quot;Um semi-acabado sólido&quot;,
+;;;     :quantidade 50.0,
+;;;     :composicao
+;;;     ({:tipo 1,
+;;;       :codigo &quot;MP-01&quot;,
+;;;       :descricao &quot;Uma matéria prima&quot;,
+;;;       :quantidade 0.5,
+;;;       :composicao ()}
+;;;      {:tipo 1,
+;;;       :codigo &quot;MP-02&quot;,
+;;;       :descricao &quot;Outra matéria prima&quot;,
+;;;       :quantidade 0.5,
+;;;       :composicao ()})}
+;;;    {:tipo 2,
+;;;     :codigo &quot;ME-01-A&quot;,
+;;;     :descricao &quot;Bombona 50L&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()})}
+;;;  {:tipo 4,
+;;;   :codigo &quot;PA-01-B&quot;,
+;;;   :descricao &quot;Produto 01 - bombona 200L&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 3,
+;;;     :codigo &quot;SA-01&quot;,
+;;;     :descricao &quot;Um semi-acabado sólido&quot;,
+;;;     :quantidade 200.0,
+;;;     :composicao
+;;;     ({:tipo 1,
+;;;       :codigo &quot;MP-01&quot;,
+;;;       :descricao &quot;Uma matéria prima&quot;,
+;;;       :quantidade 0.5,
+;;;       :composicao ()}
+;;;      {:tipo 1,
+;;;       :codigo &quot;MP-02&quot;,
+;;;       :descricao &quot;Outra matéria prima&quot;,
+;;;       :quantidade 0.5,
+;;;       :composicao ()})}
+;;;    {:tipo 2,
+;;;     :codigo &quot;ME-01-B&quot;,
+;;;     :descricao &quot;Bombona 200L&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()})}
+;;;  {:tipo 4,
+;;;   :codigo &quot;PA-0001&quot;,
+;;;   :descricao &quot;Um Produto&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 1,
+;;;     :codigo &quot;MP-0001&quot;,
+;;;     :descricao &quot;Teste&quot;,
+;;;     :quantidade 2.0,
+;;;     :composicao ()}
+;;;    {:tipo 7,
+;;;     :codigo &quot;I-0003&quot;,
+;;;     :descricao &quot;Teste MP-0003&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()}
+;;;    {:tipo 1,
+;;;     :codigo &quot;MP-0001&quot;,
+;;;     :descricao &quot;Teste&quot;,
+;;;     :quantidade 0.5,
+;;;     :composicao ()}
+;;;    {:tipo 7,
+;;;     :codigo &quot;I-0003&quot;,
+;;;     :descricao &quot;Teste MP-0003&quot;,
+;;;     :quantidade 0.8,
+;;;     :composicao ()}
+;;;    {:tipo 7,
+;;;     :codigo &quot;I-0003&quot;,
+;;;     :descricao &quot;Teste MP-0003&quot;,
+;;;     :quantidade 1.5,
+;;;     :composicao ()}
+;;;    {:tipo 1,
+;;;     :codigo &quot;MP-0001&quot;,
+;;;     :descricao &quot;Teste&quot;,
+;;;     :quantidade 3.0,
+;;;     :composicao ()})}
+;;;  {:tipo 4,
+;;;   :codigo &quot;PA-01-C2&quot;,
+;;;   :descricao &quot;TESTE GRADE&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 1,
+;;;     :codigo &quot;MP-0002:0006&quot;,
+;;;     :descricao &quot;Outro Teste Branco&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()})}
+;;;  {:tipo 4,
+;;;   :codigo &quot;PA-01-C&quot;,
+;;;   :descricao &quot;TESTE GRADE&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 1,
+;;;     :codigo &quot;MP-0002:0006&quot;,
+;;;     :descricao &quot;Outro Teste Branco&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()})}
+;;;  {:tipo 4,
+;;;   :codigo &quot;PA-0007&quot;,
+;;;   :descricao &quot;Escada de Madeira&quot;,
+;;;   :quantidade nil,
+;;;   :composicao
+;;;   ({:tipo 1,
+;;;     :codigo &quot;MP-0003&quot;,
+;;;     :descricao &quot;Parafuso 1/4\&quot;&quot;,
+;;;     :quantidade 12.0,
+;;;     :composicao ()}
+;;;    {:tipo 1,
+;;;     :codigo &quot;MP-0004&quot;,
+;;;     :descricao &quot;Cantoneira de ferro&quot;,
+;;;     :quantidade 6.0,
+;;;     :composicao ()}
+;;;    {:tipo 3,
+;;;     :codigo &quot;PA-0001-B&quot;,
+;;;     :descricao &quot;Mais Um Produto&quot;,
+;;;     :quantidade 1.0,
+;;;     :composicao ()})})
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(get-produto produtos 3 "SA-01")
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:mesesvalidade</span>","value":":mesesvalidade"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:mesesvalidade nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:cst_origem</span>","value":":cst_origem"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:cst_origem nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:custopadrao</span>","value":":custopadrao"},{"type":"html","content":"<span class='clj-double'>4.0</span>","value":"4.0"}],"value":"[:custopadrao 4.0]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:peso_bruto</span>","value":":peso_bruto"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:peso_bruto nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:unidade</span>","value":":unidade"},{"type":"html","content":"<span class='clj-string'>&quot;kg&quot;</span>","value":"\"kg\""}],"value":"[:unidade \"kg\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:precovenda</span>","value":":precovenda"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:precovenda nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:margem</span>","value":":margem"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:margem nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:codigoean</span>","value":":codigoean"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:codigoean nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:codigonfe</span>","value":":codigonfe"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:codigonfe nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:leadtimeliberacao</span>","value":":leadtimeliberacao"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:leadtimeliberacao nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:descricao</span>","value":":descricao"},{"type":"html","content":"<span class='clj-string'>&quot;Um semi-acabado sólido&quot;</span>","value":"\"Um semi-acabado sólido\""}],"value":"[:descricao \"Um semi-acabado sólido\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:tipo</span>","value":":tipo"},{"type":"html","content":"<span class='clj-unkown'>3</span>","value":"3"}],"value":"[:tipo 3]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:estoque</span>","value":":estoque"},{"type":"html","content":"<span class='clj-string'>&quot;S&quot;</span>","value":"\"S\""}],"value":"[:estoque \"S\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:descricao_adicional</span>","value":":descricao_adicional"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:descricao_adicional nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:lotevariavel</span>","value":":lotevariavel"},{"type":"html","content":"<span class='clj-string'>&quot;N&quot;</span>","value":"\"N\""}],"value":"[:lotevariavel \"N\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:composicao</span>","value":":composicao"},{"type":"html","content":"<span class='clj-string'>&quot;S&quot;</span>","value":"\"S\""}],"value":"[:composicao \"S\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:codigo</span>","value":":codigo"},{"type":"html","content":"<span class='clj-string'>&quot;SA-01&quot;</span>","value":"\"SA-01\""}],"value":"[:codigo \"SA-01\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:estoque_seguranca</span>","value":":estoque_seguranca"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:estoque_seguranca nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:cest</span>","value":":cest"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:cest nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:situacao</span>","value":":situacao"},{"type":"html","content":"<span class='clj-string'>&quot;A&quot;</span>","value":"\"A\""}],"value":"[:situacao \"A\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:loteminimo</span>","value":":loteminimo"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:loteminimo nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:formula</span>","value":":formula"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:formula nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:quantidade</span>","value":":quantidade"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:quantidade nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:grupo</span>","value":":grupo"},{"type":"html","content":"<span class='clj-unkown'>3</span>","value":"3"}],"value":"[:grupo 3]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:peso_liquido</span>","value":":peso_liquido"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:peso_liquido nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:leadtimebase</span>","value":":leadtimebase"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:leadtimebase nil]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:ncm</span>","value":":ncm"},{"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}],"value":"[:ncm nil]"}],"value":"{:mesesvalidade nil, :cst_origem nil, :custopadrao 4.0, :peso_bruto nil, :unidade \"kg\", :precovenda nil, :margem nil, :codigoean nil, :codigonfe nil, :leadtimeliberacao nil, :descricao \"Um semi-acabado sólido\", :tipo 3, :estoque \"S\", :descricao_adicional nil, :lotevariavel \"N\", :composicao \"S\", :codigo \"SA-01\", :estoque_seguranca nil, :cest nil, :situacao \"A\", :loteminimo nil, :formula nil, :quantidade nil, :grupo 3, :peso_liquido nil, :leadtimebase nil, :ncm nil}"}
+;; <=
+
+;; @@
+
+;; @@
+
+;; @@
+
+;; @@
