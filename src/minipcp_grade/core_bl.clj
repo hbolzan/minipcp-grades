@@ -77,9 +77,13 @@
 
 
 ; transformar lista de itens em grade
+(defn get-prefixo
+  [codigo]
+  (first (str/split codigo #":")))
+
 
 (defn produto-key [item]
-  (hash-map :tipo (:tipo item) :codigo (first (str/split (:codigo item) #":"))))
+  (hash-map :tipo (:tipo item) :codigo (get-prefixo (:codigo item))))
 
 
 (defn encaixar-item-na-grade 
@@ -131,11 +135,11 @@
      tipo (:tipo produto)
      prefixo (:codigo produto)
      linhas (rest (:grade grid))]
-    (map 
+    (map
       #(hash-map :tipo tipo :codigo (str prefixo ":" (first %)) :quantidade (last %))
-      (reduce 
-        (fn 
-          [items linha] 
+      (reduce
+        (fn
+          [items linha]
           (merge items (reduce cell-to-item {} (rest linha))))
         {}
         linhas))))

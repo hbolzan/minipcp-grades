@@ -8,6 +8,11 @@
             [minipcp-grade.db :refer [get-data set-data]]))
 
 
+(defresource itens-lista
+  :available-media-types ["application/json"]
+  :handle-ok (fn [_] (api-wrap-rest (into [] (get-data :itens)))))
+
+
 (defresource produtos-lista
   :available-media-types ["application/json"]
   :handle-ok 
@@ -38,16 +43,21 @@
     
 
 (defresource grade-por-produto [tipo codigo]
-  :allowed-methods [:get :post]
+  :allowed-methods [:get :post :options]
   :available-media-types ["application/json"]
   :handle-ok 
     (fn [_]
       (let [dados (get-data :static-data) itens (conj (get-data :itens) {:tipo tipo :codigo codigo :quantidade 0})]
         (api-wrap-rest (find-grade tipo codigo (items-to-grid dados itens)))))
-  
-  :post! 
+  :handle-options
+    (ring-response
+      {:headers
+        {"Access-Control-Allow-Origin" "*"
+         "Access-Control-Allow-Methods" "GET,POST,PUT,DELETE,OPTIONS"
+         "Access-Control-Allow-Headers" "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With"}})
+  :post!
     (fn 
       [ctx]
       (let [grid (assoc (tratar-grid (map-to-kwmap (api-get-body ctx))) :produto {:tipo tipo :codigo codigo})]
-        {:message (api-wrap-rest (:itens (set-data :itens (concat (itens-de-outros-produtos tipo codigo) (grid-to-items grid)))))}))
+        {:message (api-wrap-rest (into [] (:itens (set-data :itens (concat (itens-de-outros-produtos tipo codigo) (grid-to-items grid))))))}))
   :handle-created (fn [ctx] json/write-str (:message ctx)))

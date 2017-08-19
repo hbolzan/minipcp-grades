@@ -3,7 +3,9 @@
   (:require [liberator.core :refer [resource defresource]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.adapter.jetty :as jetty]
+            [ring.util.response :as response]
             [compojure.core :refer [defroutes context ANY]]
+            [compojure.route :as route]
             [minipcp-grade.api.api-routes :refer [api-routes]]))
 
 
@@ -13,14 +15,26 @@
 
 
 (defroutes app
-  (ANY "/" [] home)
+  (ANY "/" [] (response/resource-response "index.html" {:root "public"}))
   (context "/api/v1" []
-    api-routes))
+    api-routes)
+  (route/resources "/")
+  (route/not-found "Page not found"))
   
+  
+(defn wrap-cors
+  "Allow requests from all origins"
+  [handler]
+  (fn [request]
+    (let [response (handler request)]
+      (update-in response
+                 [:headers "Access-Control-Allow-Origin"]
+                 (fn [_] "*")))))
 
-(def handler 
+
+(def handler
   (-> app 
-      wrap-params))
+      wrap-params wrap-cors))
 
 
 (defn -main
